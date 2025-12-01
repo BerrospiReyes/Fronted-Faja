@@ -253,7 +253,6 @@
   </div>
 
 <script>
-  // --- AQUI ESTÁ EL CAMBIO IMPORTANTE ---
   // Usamos tu URL de Render directamente
   const API_URL = "https://faja-backend-api.onrender.com";
 
@@ -307,10 +306,9 @@
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
   });
 
-  // --- FUNCIONES PRINCIPALES (Adaptadas para Render) ---
+  // --- FUNCIONES PRINCIPALES ---
 
   function connectToESP() {
-    // Ya no leemos el input, vamos directo a la nube
     fetch(`${API_URL}/api/status`)
       .then(res => res.json())
       .then(data => {
@@ -425,10 +423,10 @@
   function resetSession() {
     if(!confirm("¿Deseas limpiar la tabla y reiniciar los gráficos de la sesión?")) return;
 
-    // 1. Limpiar Tabla
+    // Limpiar Tabla
     document.getElementById('historyBody').innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#666;">Esperando datos...</td></tr>';
     
-    // 2. Reiniciar Gráficos
+    // Reiniciar Gráficos
     sessionOffsets.p = currentCounts.p;
     sessionOffsets.m = currentCounts.m;
     sessionOffsets.g = currentCounts.g;
@@ -438,11 +436,17 @@
     pieChart.data.datasets[0].data = [0, 0, 0];
     pieChart.update();
 
-    // 3. NUEVO: Limpiar eventos en la nube
+    // Limpiar eventos en el servidor
     fetch(`${API_URL}/api/events/clear`, { method: 'POST' })
       .then(r => r.json())
-      .then(data => console.log('Eventos limpiados en servidor'))
-      .catch(err => console.error('Error limpiando eventos:', err));
+      .then(data => {
+        console.log('Eventos limpiados en servidor:', data);
+        alert('Sesión reiniciada correctamente');
+      })
+      .catch(err => {
+        console.error('Error limpiando eventos:', err);
+        alert('Advertencia: Los eventos no se limpiaron en el servidor');
+      });
 }
 
   function exportCSV() {
