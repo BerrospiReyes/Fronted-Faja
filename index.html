@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Faja Clasificadora</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+   
+  <style>
+    /* --- TEMA DARK/PURPLE (TU CSS ORIGINAL) --- */
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #8b5cf6;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --green: #10b981;
+      --blue: #3b82f6;
+      --red: #ef4444;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      color: var(--text-main);
+      padding: 20px;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; }
+
+    /* HEADER */
+    .header {
+      background: rgba(30, 41, 59, 0.7);
+      padding: 20px;
+      border-radius: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .header h1 { font-size: 24px; color: white; }
+    
+    .connection-panel { display: flex; gap: 10px; align-items: center; }
+    
+    input, select {
+      background: #334155; border: 1px solid #475569; color: white;
+      padding: 8px 12px; border-radius: 8px; outline: none;
+    }
+
+    .btn {
+      padding: 8px 16px; border-radius: 8px; border: none;
+      font-weight: 600; cursor: pointer; color: white; transition: 0.2s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); }
+    .btn-green { background: var(--green); }
+    .btn-red { background: var(--red); }
+    .btn-outline { 
+      background: transparent; border: 1px solid #475569; color: var(--text-muted); 
+    }
+    .btn-outline:hover { border-color: white; color: white; }
+
+    .status-dot {
+      height: 10px; width: 10px; border-radius: 50%;
+      background: var(--red); box-shadow: 0 0 10px var(--red);
+    }
+    .status-dot.online { background: var(--green); box-shadow: 0 0 10px var(--green); }
+
+    /* LAYOUT */
+    .grid-dashboard {
+      display: grid; grid-template-columns: 2fr 1fr; gap: 24px;
+    }
+    @media (max-width: 1000px) { .grid-dashboard { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card-bg); border-radius: 16px; padding: 24px;
+      border: 1px solid rgba(255,255,255,0.05); margin-bottom: 24px;
+    }
+    
+    .card h2 {
+      font-size: 18px; color: var(--text-muted); margin-bottom: 20px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    /* ESTILOS DE CONFIGURACIÓN */
+    .shift-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .shift-controls label {
+      display: block;
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    /* VISUALIZADOR 2D */
+    .belt-container {
+      background: #111827; border-radius: 12px; padding: 20px;
+      position: relative; overflow: hidden; min-height: 160px;
+      border: 1px solid #374151;
+    }
+    .belt-track {
+      height: 100px;
+      background: repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 20px, transparent 20px, transparent 40px);
+      position: relative; border-top: 2px solid #374151; border-bottom: 2px solid #374151;
+    }
+    .belt-track.moving { animation: beltSlide 2s linear infinite; }
+    @keyframes beltSlide { from { background-position: 0 0; } to { background-position: 40px 0; } }
+
+    /* Sensores */
+    .sensors-top {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 60px; z-index: 10;
+    }
+    .sensor-unit { display: flex; flex-direction: column; align-items: center; gap: 80px; }
+    .laser-line {
+      width: 2px; height: 100px; background: rgba(239, 68, 68, 0.2);
+      transition: 0.1s; position: absolute; top: 10px;
+    }
+    .sensor-led {
+      width: 12px; height: 12px; border-radius: 50%; background: #333;
+      border: 2px solid #555; transition: 0.2s; z-index: 20;
+    }
+    .active .laser-line { background: #10b981; box-shadow: 0 0 10px #10b981; }
+    .active .sensor-led { background: #10b981; box-shadow: 0 0 15px #10b981; border-color: #fff; }
+
+    /* CHARTS */
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .chart-container { position: relative; height: 250px; width: 100%; }
+
+    /* TABLA */
+    .table-container { overflow-x: auto; max-height: 400px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    th { color: var(--accent); position: sticky; top: 0; background: var(--card-bg); }
+    .badge-size { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+    .b-peq { background: rgba(239,68,68,0.2); color: var(--red); }
+    .b-med { background: rgba(59,130,246,0.2); color: var(--blue); }
+    .b-gra { background: rgba(16,185,129,0.2); color: var(--green); }
+
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <div class="header">
+      <div>
+        <h1>Dashboard Faja IoT</h1>
+        <div style="font-size: 13px; color: var(--text-muted);">Monitor de Clasificación</div>
+      </div>
+      <div class="connection-panel">
+        <div id="statusDot" class="status-dot"></div>
+        <input type="text" id="espIp" value="https://faja-backend-api.onrender.com" style="display:none;">
+        <button class="btn btn-primary" onclick="connectToESP()">Conectar Nube</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: end;">
+        
+        <div style="flex: 1; min-width: 300px;">
+           <h3 style="color:white; font-size: 14px; margin-bottom: 10px;">📋 Configuración de Operación</h3>
+           <div class="shift-controls" style="margin-bottom: 0;">
+             <div>
+               <label>Fecha de Operación</label>
+               <input type="date" id="inputDate" style="width: 100%;">
+             </div>
+             <div>
+               <label>Turno Actual</label>
+               <select id="inputShift" style="width: 100%;">
+                 <option value="Mañana">☀️ Mañana (07:00 - 15:00)</option>
+                 <option value="Tarde">🌅 Tarde (15:00 - 23:00)</option>
+                 <option value="Noche">🌙 Noche (23:00 - 07:00)</option>
+               </select>
+             </div>
+           </div>
+        </div>
+        
+        <div>
+          <button class="btn btn-green" id="btnStart" onclick="startMotor()" disabled>▶ INICIAR</button>
+          <button class="btn btn-red" id="btnStop" onclick="stopMotor()" disabled>⏹ PARAR</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-dashboard">
+      
+      <div>
+        <div class="card">
+          <h2>🎬 Vista Tiempo Real</h2>
+          <div class="belt-container">
+            <div class="sensors-top">
+              <div class="sensor-unit" id="sensor1">
+                <div class="sensor-led"></div><div class="laser-line"></div><div class="sensor-led"></div>
+              </div>
+              <div class="sensor-unit" id="sensor2">
+                <div class="sensor-led"></div><div class="laser-line"></div><div class="sensor-led"></div>
+              </div>
+              <div class="sensor-unit" id="sensor3">
+                <div class="sensor-led"></div><div class="laser-line"></div><div class="sensor-led"></div>
+              </div>
+            </div>
+            <div class="belt-track" id="beltTrack"></div>
+          </div>
+        </div>
+
+        <div class="charts-row">
+          <div class="card">
+            <h2>📊 Cantidad por Tipo</h2>
+            <div class="chart-container"><canvas id="barChart"></canvas></div>
+          </div>
+          
+          <div class="card">
+            <h2>🍩 Distribución</h2>
+            <div class="chart-container"><canvas id="pieChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>
+          <span>📅 Historial Sesión</span>
+          <div style="display:flex; gap:8px;">
+            <button onclick="exportCSV()" class="btn btn-outline" title="Descargar Excel">📥 Exportar CSV</button>
+            <button onclick="resetSession()" class="btn btn-outline" title="Borrar todo">🗑 Limpiar</button>
+          </div>
+        </h2>
+        <div class="table-container">
+          <table id="dataTable">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Turno</th>
+                <th>Tamaño</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr><td colspan="4" style="text-align:center; padding:20px; color:#666;">Esperando datos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+  // --- AQUI ESTÁ EL CAMBIO IMPORTANTE ---
+  // Usamos tu URL de Render directamente
+  const API_URL = "https://faja-backend-api.onrender.com";
+
+  let connected = false;
+  let statusInterval, eventsInterval;
+
+  // --- LOGICA DE SESIÓN (Offsets) ---
+  let sessionOffsets = { p: 0, m: 0, g: 0 };
+  let currentCounts = { p: 0, m: 0, g: 0 };
+
+  document.getElementById('inputDate').valueAsDate = new Date();
+
+  // --- CHARTS CONFIG ---
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
+
+  const barChart = new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Pequeñas', 'Medianas', 'Grandes'],
+      datasets: [{
+        label: 'Sesión Actual',
+        data: [0, 0, 0],
+        backgroundColor: ['#ef4444', '#3b82f6', '#10b981'],
+        borderRadius: 5
+      }]
+    },
+    options: { 
+      responsive: true, 
+      maintainAspectRatio: false, 
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1, precision: 0 }
+        }
+      }
+    }
+  });
+
+  const pieChart = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Pequeñas', 'Medianas', 'Grandes'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: ['#ef4444', '#3b82f6', '#10b981'],
+        borderWidth: 0
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+  });
+
+  // --- FUNCIONES PRINCIPALES (Adaptadas para Render) ---
+
+  function connectToESP() {
+    // Ya no leemos el input, vamos directo a la nube
+    fetch(`${API_URL}/api/status`)
+      .then(res => res.json())
+      .then(data => {
+        connected = true;
+        document.getElementById('statusDot').classList.add('online');
+        document.getElementById('btnStart').disabled = false;
+        document.getElementById('btnStop').disabled = false;
+        
+        if(sessionOffsets.p === 0 && sessionOffsets.m === 0 && sessionOffsets.g === 0){
+             sessionOffsets.p = data.pequenas;
+             sessionOffsets.m = data.medianas;
+             sessionOffsets.g = data.grandes;
+        }
+
+        startPolling();
+        alert("¡Conectado a la Nube (Render)!");
+      })
+      .catch((e) => {
+          console.error(e);
+          alert("No se pudo conectar a Render. (Puede que esté 'durmiendo', espera 1 minuto y reintenta)");
+      });
+  }
+
+  function startPolling() {
+    if(statusInterval) clearInterval(statusInterval);
+    if(eventsInterval) clearInterval(eventsInterval);
+    statusInterval = setInterval(fetchStatus, 1000); // 1 segundo para no saturar
+    eventsInterval = setInterval(fetchEvents, 3000);
+  }
+
+  function fetchStatus() {
+    if(!connected) return;
+    fetch(`${API_URL}/api/status`).then(r=>r.json()).then(data => {
+      // Visual
+      updateVisuals(data);
+      
+      // Calculamos valor de sesión
+      const pSession = Math.max(0, data.pequenas - sessionOffsets.p);
+      const mSession = Math.max(0, data.medianas - sessionOffsets.m);
+      const gSession = Math.max(0, data.grandes - sessionOffsets.g);
+
+      // Guardamos para usar en reset
+      currentCounts = { p: data.pequenas, m: data.medianas, g: data.grandes };
+
+      // Actualizar Gráficos
+      barChart.data.datasets[0].data = [pSession, mSession, gSession];
+      barChart.update();
+
+      const total = pSession + mSession + gSession;
+      if(total > 0) {
+        pieChart.data.datasets[0].data = [pSession, mSession, gSession];
+        pieChart.update();
+      }
+    });
+  }
+
+  function updateVisuals(data) {
+    toggleSensor('sensor1', data.sensors.s1);
+    toggleSensor('sensor2', data.sensors.s2);
+    toggleSensor('sensor3', data.sensors.s3);
+    
+    const belt = document.getElementById('beltTrack');
+    if(data.motorOn) belt.classList.add('moving'); else belt.classList.remove('moving');
+  }
+
+  function toggleSensor(id, active) {
+    const el = document.getElementById(id);
+    if(active) el.classList.add('active'); else el.classList.remove('active');
+  }
+
+  function fetchEvents() {
+    if(!connected) return;
+    fetch(`${API_URL}/api/events`).then(r=>r.json()).then(data => {
+      // Limpiamos la tabla antes de agregar porque la nube manda todo el historial
+      const tbody = document.getElementById('historyBody');
+      tbody.innerHTML = ""; 
+      
+      if(data.events && data.events.length > 0) addRows(data.events);
+      else tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#666;">Sin eventos recientes</td></tr>';
+    });
+  }
+
+  function addRows(events) {
+    const tbody = document.getElementById('historyBody');
+    // Ya limpiamos antes, así que solo agregamos
+    const date = document.getElementById('inputDate').value;
+    const shift = document.getElementById('inputShift').value;
+
+    events.forEach(ev => {
+      // Si la fecha viene de la nube, usamos esa. Si no, usamos la del input.
+      const evDate = ev.ts ? new Date(ev.ts) : new Date();
+      const timeStr = evDate.toLocaleTimeString();
+
+      let badge = "b-peq";
+      if(ev.size === "Mediana") badge = "b-med";
+      if(ev.size === "Grande") badge = "b-gra";
+
+      const row = `
+        <tr>
+          <td>${date}</td>
+          <td>${timeStr}</td>
+          <td>${shift}</td>
+          <td><span class="badge-size ${badge}">${ev.size}</span></td>
+        </tr>`;
+      // Usamos append porque la lista de eventos ya viene ordenada de la nube
+      tbody.insertAdjacentHTML('beforeend', row);
+    });
+  }
+
+  // --- BOTONES EXTRA ---
+
+  function resetSession() {
+    if(!confirm("¿Deseas limpiar la tabla y reiniciar los gráficos de la sesión?")) return;
+
+    // 1. Limpiar Tabla
+    document.getElementById('historyBody').innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#666;">Esperando datos...</td></tr>';
+    
+    // 2. Reiniciar Gráficos
+    sessionOffsets.p = currentCounts.p;
+    sessionOffsets.m = currentCounts.m;
+    sessionOffsets.g = currentCounts.g;
+
+    barChart.data.datasets[0].data = [0, 0, 0];
+    barChart.update();
+    pieChart.data.datasets[0].data = [0, 0, 0];
+    pieChart.update();
+  }
+
+  function exportCSV() {
+    const rows = document.querySelectorAll("#dataTable tr");
+    let csv = [];
+    
+    for (const row of rows) {
+      const cols = row.querySelectorAll("td, th");
+      const rowData = [];
+      for (const col of cols) {
+        rowData.push(col.innerText);
+      }
+      csv.push(rowData.join(","));
+    }
+    
+    const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
+    const downloadLink = document.createElement("a");
+    downloadLink.download = `reporte_faja_${new Date().toISOString().slice(0,10)}.csv`;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = "none";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  }
+
+  function startMotor() { fetch(`${API_URL}/api/motor/start`, {method:'POST'}); }
+  function stopMotor() { fetch(`${API_URL}/api/motor/stop`, {method:'POST'}); }
+
+</script>
+</body>
+</html>
